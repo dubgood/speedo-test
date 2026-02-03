@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<style> 
+
+
+
+
+
+#example1 {
+  width:425px;
+  height:200px;
+  position: relative;
+  background-image: url(speedo425.png);
+  background-position: left top;
+  overflow: hidden;
+}
+
+
+#rotate2D {
+  width: 425px;
+  height: 425px;
+  position: absolute;
+  left: 0%;
+  bottom: -112.5%;
+  transform-origin: center center;
+transform: translate(0%, 0%) rotate(0deg);
+    background-image: url("needle425.png");
+  background-position: left top;
+    background-color: transparent;
+
+
+}
+</style>
+
+<script>
+let element;
+let angle = 0;
+let velocity = 0;
+let lastTime = null;
+let animating = false;
+
+// Target
+const TARGET_ANGLE = 72;
+
+// Forward motor limits
+const MAX_ACCEL = 24;       // deg/s²
+const MAX_VELOCITY = 60;    // high enough not to dominate
+
+const MIN_ACCEL = 5; // deg/s² — sustained pull near top speed
+
+
+// Engine torque curve
+const TORQUE_EXPONENT = 2.6; // small motor, fades
+
+// Reverse return
+const RETURN_SPEED = 6;    // deg/s
+
+// Pause
+const PAUSE_DURATION = 2400; // ms
+
+const RETURN_ANGLE = 46;
+
+
+// States
+const STATE_FORWARD = 0;
+const STATE_PAUSE   = 1;
+const STATE_REVERSE = 2;
+
+let state = STATE_FORWARD;
+let pauseStart = null;
+
+function startNeedle() {
+  element = document.getElementById("rotate2D");
+  angle = 0;
+  velocity = 0;
+  state = STATE_FORWARD;
+  lastTime = null;
+  pauseStart = null;
+
+  if (!animating) {
+    animating = true;
+    requestAnimationFrame(animate);
+  }
+}
+
+function animate(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  // ---- FORWARD DRIVE (TORQUE-LIMITED) ----
+  if (state === STATE_FORWARD) {
+    const progress = Math.min(angle / TARGET_ANGLE, 1);
+    const remaining = TARGET_ANGLE - angle;
+
+    // Torque falls as speed rises
+    const accel =
+      MIN_ACCEL +
+      (MAX_ACCEL - MIN_ACCEL) *
+      Math.pow(1 - progress, TORQUE_EXPONENT);
+
+
+    // Anticipatory braking
+    const stoppingDistance =
+      (velocity * velocity) / (2 * Math.max(accel, 0.001));
+
+    if (stoppingDistance >= remaining) {
+      velocity -= MAX_ACCEL * (0.4 + 0.6 * progress) * dt;
+      }
+      else {
+      velocity += accel * dt;
+    }
+
+    velocity = Math.max(0, Math.min(velocity, MAX_VELOCITY));
+    angle += velocity * dt;
+
+    // Arrived
+    if (remaining <= 0.05 && velocity < 0.1) {
+      angle = TARGET_ANGLE;
+      velocity = 0;
+      state = STATE_PAUSE;
+      pauseStart = timestamp;
+    }
+  }
+
+  // ---- PAUSE ----
+  else if (state === STATE_PAUSE) {
+    if (timestamp - pauseStart >= PAUSE_DURATION) {
+      state = STATE_REVERSE;
+    }
+  }
+
+  // ---- RETURN ----
+else if (state === STATE_REVERSE) {
+  const remaining = angle - RETURN_ANGLE;
+
+  // Damping as we approach the parking angle
+  const factor = Math.abs(remaining) < 10
+    ? Math.abs(remaining) / 10
+    : 1;
+
+  angle -= RETURN_SPEED * factor * dt;
+
+  // Arrived at parking position
+  if (remaining <= 0.1) {
+    angle = RETURN_ANGLE;
+    velocity = 0;
+    animating = false;
+    element.style.transform = `rotate(${RETURN_ANGLE}deg)`;
+    return;
+  }
+}
+
+
+  element.style.transform = `rotate(${angle}deg)`;
+  requestAnimationFrame(animate);
+}
+
+document.addEventListener("DOMContentLoaded", startNeedle);
+</script>
+
+
+
+
+
+
+
+
+</head>
+
+<body>
+
+<p>Speedometer model. Needle animates on page load. </p>
+
+
+
+<div id="example1">
+  <p></p>
+
+<div id="rotate2D"></div>
+
+</div>
+
+
+
+<!--
+<div>
+
+<img src="speedo425.png" width="425" height="425">
+
+</div>
+-->
+
+
+
+</body>
+
+</html>
